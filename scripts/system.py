@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 import logging
-import StringIO
+import io
 import pycurl
 import socket
 import base64
@@ -169,16 +169,16 @@ class System(object):
 
     @staticmethod
     def curl_req(url, data={}, print_progress=False, auth=''):
-        buff = StringIO.StringIO()
+        buff = io.BytesIO()
         curl = pycurl.Curl()
         curl.setopt(curl.URL, url)
-        # curl.setopt(curl.WRITEDATA, buff)
         curl.setopt(curl.WRITEFUNCTION, buff.write)
         if data:
             curl.setopt(curl.POSTFIELDS, urlencode(data))
         if auth:
-            headers = { 'Authorization' : 'Basic %s' % base64.b64encode(auth) }
-            curl.setopt(curl.HTTPHEADER, ["%s: %s" % t for t in headers.items()])
+            encoded_auth = base64.b64encode(auth.encode('utf-8')).decode('utf-8')
+            headers = {'Authorization': f'Basic {encoded_auth}'}
+            curl.setopt(curl.HTTPHEADER, [f"{key}: {value}" for key, value in headers.items()])
         if print_progress:
             curl.setopt(curl.NOPROGRESS, 0)
             curl.setopt(curl.PROGRESSFUNCTION, System.curl_progress)
@@ -187,21 +187,21 @@ class System(object):
             logger.info("[##################################################] 100%")
         code = curl.getinfo(curl.RESPONSE_CODE)
         curl.close()
-        return code, buff.getvalue()
+        return code, buff.getvalue().decode('utf-8')
 
     @staticmethod
     def curl_progress(download_t, download_d, upload_t, upload_d):
         if logger.level <= 20 and download_t:
             prog = "["
             acc = 0
-            perg = download_d/download_t
-            for x in range(int(perg*50)):
+            perg = download_d / download_t
+            for _ in range(int(perg * 50)):
                 acc += 1
                 prog += "#"
-            for x in range(50-acc):
+            for _ in range(50 - acc):
                 prog += " "
             prog += "]"
-            sys.stdout.write("%s %s%%\r" % (prog, int(perg*100)))
+            sys.stdout.write(f"{prog} {int(perg * 100)}%\r")
             sys.stdout.flush()
 
     @staticmethod
